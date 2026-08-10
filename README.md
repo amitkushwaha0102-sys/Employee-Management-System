@@ -20,7 +20,7 @@ an app, but to understand *why* every AWS service is used.
 | Phase | Topic | Status |
 |---|---|---|
 | 1 | Project Planning & Architecture | ✅ Done |
-| 2 | AWS Account Safety & Billing Protection | ⬜ Pending |
+| 2 | AWS Account Safety & Billing Protection | ✅ Done |
 | 3 | VPC | ⬜ Pending |
 | 4 | EC2 | ⬜ Pending |
 | 5 | Node.js Application | ⬜ Pending |
@@ -159,6 +159,8 @@ Troubleshooting → Interview questions**
 
 - **[Date]** — Phase 1 complete: architecture planned, AWS services finalized,
   repo scaffolded.
+
+  [Date] — Phase 2 complete: root account secured (MFA), IAM admin user created, AWS CLI configured, billing budget & alerts set up.
 
 ---
 
