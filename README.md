@@ -157,12 +157,13 @@ Troubleshooting → Interview questions**
 
 ## 📅 Progress Log
 
-- **[Date]** — Phase 1 complete: architecture planned, AWS services finalized,
+- **Aug 11, 2026** — Phase 1 complete: architecture planned, AWS services finalized,
   repo scaffolded.
-
-  [Date] — Phase 2 complete: root account secured (MFA), IAM admin user created, AWS CLI configured, billing budget & alerts set up.
-
----
+- **Aug 11, 2026** — Phase 2 complete: root account secured (MFA), IAM admin user
+  created, AWS CLI configured, billing budget & alerts set up.
+- **Aug 20, 2026** — Phase 3 complete: VPC Created (6 subnets, 3-tier architecture),
+  Internet Gateway, Route Tables, chained Security Groups (ALB→App→RDS),
+  NAT Gateway — poori infrastructure Terraform se automated.
 
 ## 🎓 Author's Note
 
