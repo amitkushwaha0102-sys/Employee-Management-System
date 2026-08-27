@@ -21,7 +21,7 @@ an app, but to understand *why* every AWS service is used.
 |---|---|---|
 | 1 | Project Planning & Architecture | ✅ Done |
 | 2 | AWS Account Safety & Billing Protection | ✅ Done |
-| 3 | VPC | ⬜ Pending |
+| 3 | VPC | ✅ Done  |
 | 4 | EC2 | ⬜ Pending |
 | 5 | Node.js Application | ⬜ Pending |
 | 6 | RDS MySQL | ⬜ Pending |
@@ -168,3 +168,78 @@ Troubleshooting → Interview questions**
 
 Built as a hands-on learning project to go from "I know AWS service names" to
 "I can design, build, secure, and monitor a real multi-tier AWS architecture."
+
+
+##  VPC Architecture (Phase 3) ✅
+
+A custom VPC was created in the AWS `ap-south-1` (Mumbai) region entirely using Terraform. No resources were created manually through the AWS Management Console.
+
+### VPC
+
+| Property | Value |
+|---|---|
+| CIDR Block | `10.0.0.0/16` |
+| DNS Support | Enabled |
+| DNS Hostnames | Enabled |
+
+### Subnets — 3-Tier Architecture Across 2 Availability Zones
+
+| Tier | AZ | CIDR | Purpose |
+|---|---|---|---|
+| Public | ap-south-1a | `10.0.1.0/24` | ALB, NAT Gateway |
+| Public | ap-south-1b | `10.0.2.0/24` | ALB |
+| Private App | ap-south-1a | `10.0.11.0/24` | EC2 (Node.js application) |
+| Private App | ap-south-1b | `10.0.12.0/24` | EC2 (Node.js application) |
+| Private DB | ap-south-1a | `10.0.21.0/24` | RDS MySQL |
+| Private DB | ap-south-1b | `10.0.22.0/24` | RDS MySQL standby |
+
+### Internet Gateway
+
+The Internet Gateway connects the VPC to the internet. Only the route tables associated with the public subnets have routes pointing to the Internet Gateway.
+
+### Route Tables
+
+| Route Table | Routes | Associated Subnets |
+|---|---|---|
+| `public-rt` | `10.0.0.0/16 → local`, `0.0.0.0/0 → Internet Gateway` | Public A, Public B |
+| `private-app-rt` | `10.0.0.0/16 → local`, `0.0.0.0/0 → NAT Gateway` | Private App A, Private App B |
+| `private-db-rt` | `10.0.0.0/16 → local` (no internet route) | Private DB A, Private DB B |
+
+### NAT Gateway
+
+The NAT Gateway is deployed in Public Subnet A and is associated with an Elastic IP address. It allows EC2 instances in the Private Application Subnets to access the internet for outbound activities such as installing npm packages and downloading OS updates, without making the instances directly accessible from the internet.
+
+### Security Groups — Chained Access Model
+
+```text
+Internet (0.0.0.0/0)
+
+        │ Ports 80, 443
+        ▼
+
+ALB Security Group
+
+        │ Port 3000 (only from ALB-SG)
+        ▼
+
+Application Security Group ─── SSH (Port 22) only from Admin IP
+
+        │ Port 3306 (only from App-SG)
+        ▼
+
+RDS Security Group
+
+The database cannot be accessed directly from 0.0.0.0/0. The RDS instance only accepts traffic from the Application Security Group. This design ensures that the database is never directly exposed to the internet, even if a route table is accidentally misconfigured.
+
+Terraform Files Created in This Phase
+
+terraform/
+
+├── versions.tf              # Terraform and AWS provider version lock
+├── provider.tf              # AWS region configuration
+├── vpc.tf                   # VPC resource
+├── subnets.tf               # 6 subnets (3 tiers × 2 AZs)
+├── internet-gateway.tf      # Internet Gateway
+├── route-tables.tf          # 3 route tables and 6 subnet associations
+├── security-groups.tf       # ALB, App, and RDS security groups (chained access)
+└── nat-gateway.tf           # Elastic IP and NAT Gateway
