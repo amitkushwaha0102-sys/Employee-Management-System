@@ -22,7 +22,7 @@ an app, but to understand *why* every AWS service is used.
 | 1 | Project Planning & Architecture | ✅ Done |
 | 2 | AWS Account Safety & Billing Protection | ✅ Done |
 | 3 | VPC | ✅ Done  |
-| 4 | EC2 | ⬜ Pending |
+| 4 | EC2 | ✅ Done  |
 | 5 | Node.js Application | ⬜ Pending |
 | 6 | RDS MySQL | ⬜ Pending |
 | 7 | S3 | ⬜ Pending |
@@ -244,3 +244,22 @@ terraform/
 ├── route-tables.tf          # 3 route tables and 6 subnet associations
 ├── security-groups.tf       # ALB, App, and RDS security groups (chained access)
 └── nat-gateway.tf           # Elastic IP and NAT Gateway
+
+###  EC2 Deployment (Phase 4) ✅
+
+An EC2 instance was created in the **Private App Subnet** with no public IP address and no direct SSH access.
+
+| Property | Value |
+|---|---|
+| AMI | Ubuntu 22.04 LTS (dynamically fetched using a Terraform `data` block) |
+| Instance Type | `t3.micro` |
+| Subnet | Private App Subnet A |
+| Security Group | `app-sg` (Port 3000 allowed only from the ALB, SSH allowed only from the admin IP) |
+
+### Secure Access — AWS SSM Session Manager
+
+Instead of using traditional SSH access, **AWS Systems Manager Session Manager** was configured:
+
+- An IAM Role was created (`employee-mgmt-ec2-ssm-role`) with the `AmazonSSMManagedInstanceCore` policy and attached to the EC2 instance through an Instance Profile.
+- The EC2 instance establishes an outbound connection to the AWS SSM service through the NAT Gateway, so no inbound port such as port 22 needs to be opened.
+- Result: Secure shell access is available directly from the browser without SSH key management and without increasing the attack surface..
