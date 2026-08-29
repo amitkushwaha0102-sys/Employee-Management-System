@@ -125,4 +125,4 @@ NGINX_EOF
 nginx -t
 systemctl reload nginx
 
-echo "Setup complete!"
+echo "Setup complete!Thank You"
