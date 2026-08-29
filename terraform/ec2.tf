@@ -10,7 +10,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_key_pair" "deployer" {
   key_name   = "employee-mgmt-key"
-  public_key = file("~/.ssh/employee-mgmt-key.pub")
+  public_key = file("~/.ssh/employee-mgmt-key2.pub")
 }
 
 resource "aws_instance" "app" {
