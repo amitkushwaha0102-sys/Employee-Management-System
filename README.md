@@ -210,9 +210,9 @@ The Internet Gateway connects the VPC to the internet. Only the route tables ass
 
 The NAT Gateway is deployed in Public Subnet A and is associated with an Elastic IP address. It allows EC2 instances in the Private Application Subnets to access the internet for outbound activities such as installing npm packages and downloading OS updates, without making the instances directly accessible from the internet.
 
+
 ### Security Groups — Chained Access Model
 
-```text
 Internet (0.0.0.0/0)
 
         │ Ports 80, 443
@@ -234,6 +234,8 @@ The database cannot be accessed directly from 0.0.0.0/0. The RDS instance only a
 
 Terraform Files Created in This Phase
 
+
+
 terraform/
 
 ├── versions.tf              # Terraform and AWS provider version lock
@@ -245,7 +247,11 @@ terraform/
 ├── security-groups.tf       # ALB, App, and RDS security groups (chained access)
 └── nat-gateway.tf           # Elastic IP and NAT Gateway
 
-###  EC2 Deployment (Phase 4) ✅
+
+
+---
+
+### EC2 Deployment (Phase 4) ✅
 
 An EC2 instance was created in the **Private App Subnet** with no public IP address and no direct SSH access.
 
@@ -254,7 +260,7 @@ An EC2 instance was created in the **Private App Subnet** with no public IP addr
 | AMI | Ubuntu 22.04 LTS (dynamically fetched using a Terraform `data` block) |
 | Instance Type | `t3.micro` |
 | Subnet | Private App Subnet A |
-| Security Group | `app-sg` (Port 3000 allowed only from the ALB, SSH allowed only from the admin IP) |
+| Security Group | `app-sg` (Port 3000 allowed only from the ALB, SSH allowed only from admin IP) |
 
 ### Secure Access — AWS SSM Session Manager
 
@@ -262,31 +268,25 @@ Instead of using traditional SSH access, **AWS Systems Manager Session Manager**
 
 - An IAM Role was created (`employee-mgmt-ec2-ssm-role`) with the `AmazonSSMManagedInstanceCore` policy and attached to the EC2 instance through an Instance Profile.
 - The EC2 instance establishes an outbound connection to the AWS SSM service through the NAT Gateway, so no inbound port such as port 22 needs to be opened.
-- Result: Secure shell access is available directly from the browser without SSH key management and without increasing the attack surface..
+- Result: Secure shell access is available directly from the browser without SSH key management and without increasing the attack surface.
 
-##  Node.js Application (Phase 5) ✅
+---
+
+## Node.js Application (Phase 5) ✅
 
 An Express.js REST API has been developed to perform Employee CRUD operations:
 
-* `GET /health` — Health check endpoint
-* `GET /api/employees` — Retrieve the list of all employees
-* `GET /api/employees/:id` — Retrieve a specific employee
-* `POST /api/employees` — Create a new employee
-* `PUT /api/employees/:id` — Update an existing employee
-* `DELETE /api/employees/:id` — Delete an employee
+- `GET /health` — Health check endpoint
+- `GET /api/employees` — Retrieve the list of all employees
+- `GET /api/employees/:id` — Retrieve a specific employee
+- `POST /api/employees` — Create a new employee
+- `PUT /api/employees/:id` — Update an employee
+- `DELETE /api/employees/:id` — Delete an employee
 
-### Process Management
+**Process Management:** PM2 is used so that the app auto-restarts on crash, and automatically starts again after an EC2 reboot (via systemd integration).
 
-PM2 has been configured to manage the Node.js application. If the application crashes, PM2 automatically restarts it. It is also integrated with systemd, ensuring that the application automatically starts when the EC2 instance reboots.
+**Reverse Proxy:** Nginx is configured to forward requests from port 80 to port 3000 — a standard, production-style port setup.
 
-### Reverse Proxy
+**Full Automation:** The entire setup (Node.js install, app deployment, PM2, Nginx) is automated in a `user_data` script — whenever a new EC2 instance is created (`terraform apply`), everything configures itself automatically, without manual intervention. This makes the infrastructure "immutable."
 
-Nginx has been configured as a reverse proxy to forward incoming requests from port `80` to the Node.js application running on port `3000`. This follows a standard production-style application deployment architecture.
 
-### Full Automation
-
-The complete application setup—including Node.js installation, application deployment, PM2 configuration, and Nginx setup—has been automated using a `user_data` script.
-
-Whenever a new EC2 instance is created using `terraform apply`, the entire application environment is automatically configured without any manual intervention. This approach helps make the infrastructure more consistent and immutable.
-
-Full write-up: [`docs/phase-5-nodejs.md`](docs/phase-5-nodejs.md)
