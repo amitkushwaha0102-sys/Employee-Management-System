@@ -23,8 +23,8 @@ an app, but to understand *why* every AWS service is used.
 | 2 | AWS Account Safety & Billing Protection | ✅ Done |
 | 3 | VPC | ✅ Done  |
 | 4 | EC2 | ✅ Done  |
-| 5 | Node.js Application | ⬜ Pending |
-| 6 | RDS MySQL | ⬜ Pending |
+| 5 | Node.js Application | ✅ Done |
+| 6 | RDS MySQL | ⬜ Underwork |
 | 7 | S3 | ⬜ Pending |
 | 8 | Application Load Balancer | ⬜ Pending |
 | 9 | Auto Scaling | ⬜ Pending |
@@ -263,3 +263,30 @@ Instead of using traditional SSH access, **AWS Systems Manager Session Manager**
 - An IAM Role was created (`employee-mgmt-ec2-ssm-role`) with the `AmazonSSMManagedInstanceCore` policy and attached to the EC2 instance through an Instance Profile.
 - The EC2 instance establishes an outbound connection to the AWS SSM service through the NAT Gateway, so no inbound port such as port 22 needs to be opened.
 - Result: Secure shell access is available directly from the browser without SSH key management and without increasing the attack surface..
+
+##  Node.js Application (Phase 5) ✅
+
+An Express.js REST API has been developed to perform Employee CRUD operations:
+
+* `GET /health` — Health check endpoint
+* `GET /api/employees` — Retrieve the list of all employees
+* `GET /api/employees/:id` — Retrieve a specific employee
+* `POST /api/employees` — Create a new employee
+* `PUT /api/employees/:id` — Update an existing employee
+* `DELETE /api/employees/:id` — Delete an employee
+
+### Process Management
+
+PM2 has been configured to manage the Node.js application. If the application crashes, PM2 automatically restarts it. It is also integrated with systemd, ensuring that the application automatically starts when the EC2 instance reboots.
+
+### Reverse Proxy
+
+Nginx has been configured as a reverse proxy to forward incoming requests from port `80` to the Node.js application running on port `3000`. This follows a standard production-style application deployment architecture.
+
+### Full Automation
+
+The complete application setup—including Node.js installation, application deployment, PM2 configuration, and Nginx setup—has been automated using a `user_data` script.
+
+Whenever a new EC2 instance is created using `terraform apply`, the entire application environment is automatically configured without any manual intervention. This approach helps make the infrastructure more consistent and immutable.
+
+Full write-up: [`docs/phase-5-nodejs.md`](docs/phase-5-nodejs.md)
