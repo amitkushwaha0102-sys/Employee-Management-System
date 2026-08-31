@@ -10,7 +10,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_key_pair" "deployer" {
   key_name   = "employee-mgmt-key"
-  public_key = file("~/.ssh/employee-mgmt-key2.pub")
+  public_key = file(var.ssh_public_key_path)
 }
 
 resource "aws_instance" "app" {
@@ -20,7 +20,10 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.app.id]
   key_name               = aws_key_pair.deployer.key_name
   iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_profile.name
-  user_data              = file("scripts/user-data.sh")
+
+  user_data = templatefile("${path.module}/scripts/user-data.sh", {
+    db_host = aws_db_instance.mysql.address
+  })
 
   tags = {
     Name = "employee-mgmt-app-server"
