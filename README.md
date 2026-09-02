@@ -24,7 +24,7 @@ an app, but to understand *why* every AWS service is used.
 | 3 | VPC | ✅ Done  |
 | 4 | EC2 | ✅ Done  |
 | 5 | Node.js Application | ✅ Done |
-| 6 | RDS MySQL | ⬜ Underwork |
+| 6 | RDS MySQL |✅ Done |
 | 7 | S3 | ⬜ Pending |
 | 8 | Application Load Balancer | ⬜ Pending |
 | 9 | Auto Scaling | ⬜ Pending |
@@ -290,3 +290,20 @@ An Express.js REST API has been developed to perform Employee CRUD operations:
 **Full Automation:** The entire setup (Node.js install, app deployment, PM2, Nginx) is automated in a `user_data` script — whenever a new EC2 instance is created (`terraform apply`), everything configures itself automatically, without manual intervention. This makes the infrastructure "immutable."
 
 
+## 🗄️ RDS MySQL (Phase 6) ✅
+
+A MySQL 8.0 database was provisioned using RDS in the Private DB Subnets,
+with no public accessibility.
+
+- **Credentials Security:** A random password is generated via Terraform's
+  `random_password` provider and stored in AWS Secrets Manager — never
+  hardcoded in code or state.
+- **Least-Privilege IAM:** The EC2 instance's IAM Role has a custom policy
+  granting access to only this specific secret (`secretsmanager:GetSecretValue`),
+  verified by testing that access is denied without the policy attached.
+- **Application Integration:** The Node.js app fetches credentials at runtime
+  using the AWS SDK, then connects to MySQL via the `mysql2` driver.
+- **Full Automation:** Terraform's `templatefile()` function dynamically
+  injects the RDS endpoint into the EC2 User Data script, so a completely
+  fresh EC2 instance automatically connects to the correct database on boot
+  — verified end-to-end by destroying and recreating the entire stack.
