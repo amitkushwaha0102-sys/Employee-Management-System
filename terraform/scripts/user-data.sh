@@ -116,7 +116,7 @@ app.delete('/api/employees/:id', async (req, res) => {
 });
 
 app.post('/api/employees/:id/photo', upload.single('photo'), async (req, res) => {
-  const key = `profile-photos/employee-${req.params.id}.jpg`;
+  const key = `profile-photos/employee-$${req.params.id}.jpg`;
 
   await s3Client.send(new PutObjectCommand({
     Bucket: BUCKET_NAME,

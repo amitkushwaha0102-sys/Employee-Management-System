@@ -4,6 +4,7 @@ resource "random_id" "bucket_suffix" {
 
 resource "aws_s3_bucket" "uploads" {
   bucket = "employee-mgmt-uploads-${random_id.bucket_suffix.hex}"
+  force_destroy = true  
 
   tags = {
     Name = "employee-mgmt-uploads"
