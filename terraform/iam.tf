@@ -40,3 +40,23 @@ resource "aws_iam_role_policy" "secrets_access" {
     ]
   })
 }
+
+resource "aws_iam_role_policy" "s3_access" {
+  name = "employee-mgmt-s3-access"
+  role = aws_iam_role.ec2_ssm_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        Resource = "${aws_s3_bucket.uploads.arn}/*"
+      }
+    ]
+  })
+}
