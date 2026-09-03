@@ -22,7 +22,8 @@ resource "aws_instance" "app" {
   iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_profile.name
 
   user_data = templatefile("${path.module}/scripts/user-data.sh", {
-    db_host = aws_db_instance.mysql.address
+    db_host   = aws_db_instance.mysql.address
+    s3_bucket = aws_s3_bucket.uploads.bucket
   })
 
   tags = {
