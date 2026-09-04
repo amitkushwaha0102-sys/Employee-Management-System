@@ -25,7 +25,7 @@ an app, but to understand *why* every AWS service is used.
 | 4 | EC2 | ✅ Done  |
 | 5 | Node.js Application | ✅ Done |
 | 6 | RDS MySQL |✅ Done |
-| 7 | S3 | ⬜ Pending |
+| 7 | S3 | ✅ Done |
 | 8 | Application Load Balancer | ⬜ Pending |
 | 9 | Auto Scaling | ⬜ Pending |
 | 10 | IAM | ⬜ Pending |
