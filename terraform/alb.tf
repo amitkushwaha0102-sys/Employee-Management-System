@@ -12,7 +12,6 @@ resource "aws_lb" "main" {
     Name = "employee-mgmt-alb"
   }
 }
-
 resource "aws_lb_target_group" "app" {
   name     = "employee-mgmt-tg"
   port     = 3000
@@ -45,8 +44,10 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+/*
 resource "aws_lb_target_group_attachment" "app_ec2" {
   target_group_arn = aws_lb_target_group.app.arn
   target_id        = aws_instance.app.id
   port             = 3000
 }
+*/

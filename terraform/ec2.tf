@@ -1,3 +1,4 @@
+
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"]
@@ -13,6 +14,7 @@ resource "aws_key_pair" "deployer" {
   public_key = file(var.ssh_public_key_path)
 }
 
+/*
 resource "aws_instance" "app" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = "t3.micro"
@@ -30,3 +32,4 @@ resource "aws_instance" "app" {
     Name = "employee-mgmt-app-server"
   }
 }
+*/
