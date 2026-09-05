@@ -26,7 +26,7 @@ an app, but to understand *why* every AWS service is used.
 | 5 | Node.js Application | ✅ Done |
 | 6 | RDS MySQL |✅ Done |
 | 7 | S3 | ✅ Done |
-| 8 | Application Load Balancer | ⬜ Pending |
+| 8 | Application Load Balancer | ✅ Done |
 | 9 | Auto Scaling | ⬜ Pending |
 | 10 | IAM | ⬜ Pending |
 | 11 | Secrets Manager | ⬜ Pending |
@@ -290,7 +290,7 @@ An Express.js REST API has been developed to perform Employee CRUD operations:
 **Full Automation:** The entire setup (Node.js install, app deployment, PM2, Nginx) is automated in a `user_data` script — whenever a new EC2 instance is created (`terraform apply`), everything configures itself automatically, without manual intervention. This makes the infrastructure "immutable."
 
 
-## 🗄️ RDS MySQL (Phase 6) ✅
+##  RDS MySQL (Phase 6) ✅
 
 A MySQL 8.0 database was provisioned using RDS in the Private DB Subnets,
 with no public accessibility.
@@ -307,3 +307,42 @@ with no public accessibility.
   injects the RDS endpoint into the EC2 User Data script, so a completely
   fresh EC2 instance automatically connects to the correct database on boot
   — verified end-to-end by destroying and recreating the entire stack.
+
+
+##  S3 Storage (Phase 7) ✅
+
+An S3 bucket was created for employee profile photos and documents, with:
+
+- **Block Public Access** enabled — no object is ever publicly reachable
+- **Versioning** enabled — protects against accidental overwrite/delete
+- **Server-side encryption** (AES256) for data at rest
+- **Least-privilege IAM policy** — the EC2 role can only PutObject/GetObject/
+  DeleteObject within this specific bucket
+
+**Application Integration:** A `POST /api/employees/:id/photo` endpoint was
+added using `multer` (file upload middleware) and the AWS S3 SDK. Photos are
+stored in S3; only the object key is intended to be referenced from the
+database — never storing binary data in MySQL.
+
+**Full Automation:** The S3 bucket name is injected into the EC2 instance via
+`templatefile()`, alongside the RDS endpoint — verified end-to-end on a fresh
+machine with zero manual configuration.
+
+##  Application Load Balancer (Phase 8) ✅
+
+An internet-facing ALB was deployed across both public subnets to route
+traffic to the private EC2 instance.
+
+- **Listener:** HTTP on port 80, forwarding to a Target Group on port 3000
+- **Target Group Health Check:** `/health` endpoint, checked every 15
+  seconds — the target is marked healthy/unhealthy automatically based on
+  the app's own health-check response
+- **Security:** The ALB's security group allows inbound traffic from the
+  internet (0.0.0.0/0), but the EC2 instance's security group only accepts
+  traffic from the ALB's security group — the EC2 instance itself still has
+  no public IP address
+
+**Verification:** The full request path — internet → ALB (public subnet) →
+EC2 (private subnet) → RDS → response — was tested end-to-end directly from
+a local machine using the ALB's DNS name, confirming the private compute
+layer is reachable only through the load balancer.
