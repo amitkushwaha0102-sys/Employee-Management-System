@@ -27,10 +27,10 @@ an app, but to understand *why* every AWS service is used.
 | 6 | RDS MySQL |✅ Done |
 | 7 | S3 | ✅ Done |
 | 8 | Application Load Balancer | ✅ Done |
-| 9 | Auto Scaling | ⬜ Pending |
-| 10 | IAM | ⬜ Pending |
-| 11 | Secrets Manager | ⬜ Pending |
-| 12 | Lambda | ⬜ Pending |
+| 9 | Auto Scaling | ✅ Done |
+| 10 | IAM | ✅ Done |
+| 11 | Secrets Manager | ✅ Done|
+| 12 | Lambda | ✅ Done |
 | 13 | SQS / SNS | ⬜ Pending |
 | 14 | CloudWatch | ⬜ Pending |
 | 15 | CloudTrail | ⬜ Pending |
@@ -346,3 +346,75 @@ traffic to the private EC2 instance.
 EC2 (private subnet) → RDS → response — was tested end-to-end directly from
 a local machine using the ALB's DNS name, confirming the private compute
 layer is reachable only through the load balancer.
+
+## 📈 Auto Scaling (Phase 9) ✅
+
+Standalone EC2 was replaced with a **Launch Template + Auto Scaling Group**
+architecture, so instances are provisioned dynamically rather than being a
+single fixed resource.
+
+| Setting | Value |
+|---|---|
+| Min / Desired / Max | 1 / 1 / 2 |
+| Subnets | Both private app subnets (Multi-AZ) |
+| Health Check Type | ELB (uses the ALB's own health check, not just EC2 status) |
+| Health Check Grace Period | 300 seconds |
+
+**Debugging note:** Initially the grace period was set to 60 seconds, which
+caused the ASG to continuously terminate and recreate instances — the app
+was actually healthy, but User Data provisioning (Node.js install, npm
+install, PM2 startup) took longer than the grace period allowed, so ASG
+marked instances unhealthy before they finished booting. This was diagnosed
+using `aws elbv2 describe-target-health`, which showed `DeregistrationInProgress`
+across multiple rotating instance IDs — confirming a replacement loop rather
+than an application bug. Increasing the grace period to 300 seconds resolved it.
+
+**Verification:** Confirmed via the ALB's DNS name from a local machine that
+a completely ASG-provisioned instance serves traffic correctly end-to-end.
+
+
+## ⚡ AWS Lambda (Phase 10) ✅
+
+### What Was Built
+A Lambda function that automatically runs whenever an employee photo is
+uploaded to S3 — the application never explicitly invokes it.
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `lambda/index.js` | The Lambda code — extracts bucket name, object key, and file size from the S3 event, then logs them | Kept outside `terraform/` at the project root so application code and infrastructure code stay separate |
+| `terraform/lambda.tf` | 4 resources: `archive_file` (zips the code), `aws_lambda_function` (deploys it), `aws_lambda_permission` (authorizes S3 to invoke it), `aws_s3_bucket_notification` (tells S3 when to call it) | All Lambda-related resources grouped in one file |
+| `terraform/iam.tf` | 2 additions: `aws_iam_role.lambda_execution_role` (Lambda's own identity) and a policy attachment granting CloudWatch Logs access | Lambda gets its own minimal-permission role rather than reusing the EC2 role — each service should have its own least-privilege identity |
+| `terraform/versions.tf` | Added the `archive` provider (`hashicorp/archive ~> 2.4`) | Needed specifically to zip the Lambda code — the AWS provider alone doesn't do this |
+
+### Key Concept — Two Different Kinds of Permission
+
+1. **IAM Role** (`lambda_execution_role`) — defines what Lambda **itself** is allowed to do (e.g., write to CloudWatch)
+2. **`aws_lambda_permission`** — defines **who is allowed to call** Lambda (here: the S3 service)
+
+These are two separate directions of trust — one is "Lambda → outward," the other is "outward → Lambda."
+
+### Trigger Flow
+
+Node.js app uploads a photo to S3 (PutObjectCommand)
+S3 detects the new object (ObjectCreated event)
+The S3 Bucket Notification (configured in lambda.tf) picks up the event
+S3 invokes Lambda (allowed via aws_lambda_permission)
+Lambda extracts details from the event object
+Output is written to CloudWatch Log
+
+
+### How It Was Verified
+```bash
+# Uploaded a test photo from inside the EC2 instance:
+curl -X POST http://localhost:3000/api/employees/5/photo -F "photo=@test.jpg"
+
+# Checked CloudWatch Console:
+# Log group: /aws/lambda/employee-mgmt-photo-processor
+# Confirmed correct bucket name, object key, and file size in the output
+```
+
+### Cost Note
+Billed duration was ~200ms per invocation — far cheaper than a permanently
+running EC2 instance for infrequent, event-driven tasks.
