@@ -14,6 +14,7 @@ apt install -y nodejs
 apt install -y nginx
 
 npm install -g pm2
+npm install @aws-sdk/client-sns
 
 mkdir -p /home/ubuntu/employee-app
 cd /home/ubuntu/employee-app
@@ -34,6 +35,10 @@ cat > package.json << 'PACKAGE_EOF'
 PACKAGE_EOF
 
 cat > index.js << 'INDEX_EOF'
+const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
+const snsClient = new SNSClient({ region: "ap-south-1" });
+const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN;
+
 const express = require('express');
 const mysql = require('mysql2/promise');
 const multer = require('multer');
@@ -98,7 +103,21 @@ app.post('/api/employees', async (req, res) => {
     'INSERT INTO employees (name, email, department, designation) VALUES (?, ?, ?, ?)',
     [name, email, department, designation]
   );
-  res.status(201).json({ id: result.insertId, name, email, department, designation });
+
+  const newEmployee = { id: result.insertId, name, email, department, designation };
+
+  // SNS ko notification bhejo — fail ho toh bhi employee creation fail na ho
+  try {
+    await snsClient.send(new PublishCommand({
+      TopicArn: SNS_TOPIC_ARN,
+      Message: JSON.stringify(newEmployee),
+      Subject: 'New Employee Onboarded'
+    }));
+  } catch (err) {
+    console.error('SNS publish failed:', err.message);
+  }
+
+  res.status(201).json(newEmployee);
 });
 
 app.put('/api/employees/:id', async (req, res) => {
@@ -116,7 +135,7 @@ app.delete('/api/employees/:id', async (req, res) => {
 });
 
 app.post('/api/employees/:id/photo', upload.single('photo'), async (req, res) => {
-  const key = `profile-photos/employee-$${req.params.id}.jpg`;
+  const key = `profile-photos/employee-${req.params.id}.jpg`;
 
   await s3Client.send(new PutObjectCommand({
     Bucket: BUCKET_NAME,
