@@ -31,8 +31,8 @@ an app, but to understand *why* every AWS service is used.
 | 10 | IAM | ✅ Done |
 | 11 | Secrets Manager | ✅ Done|
 | 12 | Lambda | ✅ Done |
-| 13 | SQS / SNS | ⬜ Pending |
-| 14 | CloudWatch | ⬜ Pending |
+| 13 | SQS / SNS | ✅ Done |
+| 14 | CloudWatch | ✅ Done
 | 15 | CloudTrail | ⬜ Pending |
 | 16 | Route 53 + ACM | ⬜ Pending |
 | 17 | Docker + ECR | ⬜ Pending |
@@ -418,3 +418,36 @@ curl -X POST http://localhost:3000/api/employees/5/photo -F "photo=@test.jpg"
 ### Cost Note
 Billed duration was ~200ms per invocation — far cheaper than a permanently
 running EC2 instance for infrequent, event-driven tasks.
+
+## 🔔 CloudWatch Monitoring (Phase 12) ✅
+
+### What Was Built
+Two CloudWatch Alarms that watch infrastructure health and notify via a
+dedicated SNS topic when thresholds are breached.
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `terraform/cloudwatch.tf` | An SNS topic (`employee-mgmt-alarms`) plus two `aws_cloudwatch_metric_alarm` resources — high CPU and ALB 5xx errors | A separate topic from the employee-events SNS topic keeps "business events" and "infrastructure alerts" as distinct concerns |
+
+### Alarm Design Decisions
+
+| Alarm | Statistic | Period | Why |
+|---|---|---|---|
+| High CPU | Average, over 2×5-min periods (10 min sustained) | 300s | Averaging over a longer window filters out brief spikes and only fires for genuinely sustained load |
+| ALB 5XX Errors | Sum, over 1 minute | 60s | Errors need fast detection — a short window with a count-based statistic catches error bursts quickly, unlike the CPU alarm's "wait and confirm" approach |
+
+### Key Concept — Why "Average" Doesn't Always Catch Every Spike
+A metric alarm using `Average` over a 5-minute window can mask short, sharp
+spikes if the rest of the window has low values (e.g., CPU alternating
+between 90% and 20% could average out below the threshold). This is
+intentional — it prevents alerting on transient noise. For counting
+discrete events (like error responses), `Sum` is used instead, since any
+occurrence should count regardless of what else happened in the window.
+
+### Already-Existing CloudWatch Usage (From Earlier Phases)
+Lambda function logs (Phase 10) are automatically sent to CloudWatch Logs
+under `/aws/lambda/employee-mgmt-photo-processor` — no additional
+configuration was needed for that, since Lambda integrates with CloudWatch
+Logs by default.
