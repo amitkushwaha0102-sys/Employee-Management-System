@@ -32,8 +32,8 @@ an app, but to understand *why* every AWS service is used.
 | 11 | Secrets Manager | ✅ Done|
 | 12 | Lambda | ✅ Done |
 | 13 | SQS / SNS | ✅ Done |
-| 14 | CloudWatch | ✅ Done
-| 15 | CloudTrail | ⬜ Pending |
+| 14 | CloudWatch | ✅ Done |
+| 15 | CloudTrail |✅ Done |
 | 16 | Route 53 + ACM | ⬜ Pending |
 | 17 | Docker + ECR | ⬜ Pending |
 | 18 | ECS / Fargate | ⬜ Pending |
@@ -451,3 +451,38 @@ Lambda function logs (Phase 10) are automatically sent to CloudWatch Logs
 under `/aws/lambda/employee-mgmt-photo-processor` — no additional
 configuration was needed for that, since Lambda integrates with CloudWatch
 Logs by default.
+
+## 🔍 CloudTrail (Phase 13) ✅
+
+### What Was Built
+Account-wide API activity logging — every AWS API call (who did what, when,
+from where) is recorded and stored in a dedicated S3 bucket.
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `terraform/cloudtrail.tf` | A dedicated S3 bucket for CloudTrail logs, a bucket policy authorizing the CloudTrail service to write to it, and the `aws_cloudtrail` trail resource itself | Audit logs are kept in a separate bucket from application data (employee photos) — this is a defense-in-depth choice: if the application bucket's permissions were ever misconfigured, the audit trail itself stays isolated and trustworthy |
+
+### Key Concept — CloudWatch vs CloudTrail
+- **CloudWatch** answers "how is the system performing" (metrics, application logs, alarms)
+- **CloudTrail** answers "who did what" (API call history for security/audit)
+
+### Design Decision — `include_global_service_events = true`
+This was deliberately set to `true` (not the more restrictive `false`)
+because IAM is a global service, not region-specific. If this were `false`,
+a critical security event — like someone creating a new admin IAM user —
+would never appear in the trail at all. For an audit log, missing global
+service events would defeat the purpose.
+
+### How It Was Verified
+Confirmed in the AWS Console that the trail shows "Logging" status, and
+that log files begin appearing in the dedicated S3 bucket shortly after.
+
+### Interview Talking Point
+I set up CloudTrail with a dedicated S3 bucket for logs, separate from
+application data buckets, to keep the audit trail isolated even if
+application-level permissions were ever misconfigured. I also made sure
+global service events (like IAM changes) were included, since IAM is a
+common vector for account compromise and excluding those events would
+create a blind spot in the audit trail.
