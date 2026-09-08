@@ -1,0 +1,13 @@
+{
+  "name": "employee-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^5.2.1",
+    "mysql2": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "multer": "^1.4.5-lts.1",
+    "@aws-sdk/client-sns": "^3.0.0"
+  }
+}

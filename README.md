@@ -486,3 +486,66 @@ application-level permissions were ever misconfigured. I also made sure
 global service events (like IAM changes) were included, since IAM is a
 common vector for account compromise and excluding those events would
 create a blind spot in the audit trail.
+
+## 🌐 Route 53 + ACM (Phase 14) ✅
+
+### What Was Built
+A Route 53 Hosted Zone with an Alias record pointing to the ALB, plus an
+understanding of how HTTPS would be layered on top using ACM.
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `terraform/route53.tf` | An `aws_route53_zone` and an `aws_route53_record` (type A, using an `alias` block) that points to the ALB | Since the ALB has no fixed IP, a standard A record can't be used directly — an alias record resolves to the ALB's DNS name and updates automatically if AWS changes the underlying IPs |
+
+### Note On Domain Ownership
+This project does not use a purchased domain — the Hosted Zone was created
+under a placeholder domain (`employee-mgmt-demo.com`) purely to demonstrate
+the Route 53 configuration. It is not resolvable on the public internet, since
+it isn't registered with a real registrar.
+
+### ACM / HTTPS — Understood But Not Implemented
+Enabling HTTPS would require: requesting an ACM certificate with DNS
+validation, adding the resulting validation CNAME record to Route 53 to
+prove domain ownership, then adding an HTTPS (443) listener on the ALB
+referencing the issued certificate, and finally redirecting the existing
+HTTP (80) listener to HTTPS. This wasn't implemented here because ACM
+certificate validation requires a real, registered domain — which this
+project doesn't have — but the full Terraform configuration for it was
+reviewed as part of this phase.
+
+## 🐳 Docker + ECR (Phase 15) ✅
+
+### What Was Built
+The Node.js application was containerized using Docker, and the resulting
+image was pushed to a private AWS ECR repository.
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `docker/Dockerfile` | Multi-stage-style build using `node:20-alpine` as a lightweight base, with dependency installation separated from application code copying | Alpine keeps the image small (~61MB vs ~1GB for a full Ubuntu-based image); separating `COPY package*.json` + `RUN npm install` from `COPY *.js` takes advantage of Docker's layer caching — if dependencies don't change, `npm install` is skipped on rebuild |
+| `.dockerignore` | Excludes `node_modules`, `.git`, and Terraform files from the build context | Prevents copying a host-specific `node_modules` folder into the container (which could conflict with the container's own Linux/Alpine environment) and keeps builds fast |
+| `terraform/ecr.tf` | An ECR repository with `scan_on_push = true` | Automatically scans every pushed image for known vulnerabilities |
+
+### Key Concept — Image vs Container
+An **image** is a built, static package (the blueprint). A **container** is
+a running instance of that image. One image can produce many containers.
+
+### Verification & An Expected Failure
+The image was built and run locally with `docker run`. The container
+exited immediately with a `CredentialsProviderError` — this was expected
+and confirms the application code is correct: a container running on a
+local machine has no AWS IAM identity, unlike an EC2 instance with an
+Instance Profile. This gap gets resolved in Phase 18 (ECS/Fargate), where
+the container runs inside AWS and receives credentials via an IAM Task Role.
+
+The image was then tagged and pushed to ECR:
+```bash
+docker tag employee-app:v1 <account-id>.dkr.ecr.ap-south-1.amazonaws.com/employee-mgmt-app:v1
+docker push <account-id>.dkr.ecr.ap-south-1.amazonaws.com/employee-mgmt-app:v1
+```
+Confirmed via `aws ecr describe-images` that the `v1` tagged image is
+`ACTIVE` in the repository.
+
