@@ -13,10 +13,11 @@ resource "aws_lb" "main" {
   }
 }
 resource "aws_lb_target_group" "app" {
-  name     = "employee-mgmt-tg"
-  port     = 3000
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.main.id
+  name        = "employee-mgmt-tg-v2"
+  port        = 3000
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
 
   health_check {
     path                = "/health"
@@ -26,6 +27,10 @@ resource "aws_lb_target_group" "app" {
     timeout             = 5
     interval            = 15
     matcher             = "200"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 
   tags = {

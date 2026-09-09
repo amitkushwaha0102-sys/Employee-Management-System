@@ -12,9 +12,11 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   statistic           = "Average"
   threshold           = 70
 
+  /*
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.app.name
   }
+*/
 
   alarm_actions = [aws_sns_topic.alarms.arn]
 

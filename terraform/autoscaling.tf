@@ -1,3 +1,4 @@
+/*
 resource "aws_launch_template" "app" {
   name_prefix   = "employee-mgmt-app-"
   image_id      = data.aws_ami.ubuntu.id
@@ -49,3 +50,4 @@ resource "aws_autoscaling_group" "app" {
     propagate_at_launch = true
   }
 }
+*/

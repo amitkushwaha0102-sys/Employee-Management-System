@@ -549,3 +549,52 @@ docker push <account-id>.dkr.ecr.ap-south-1.amazonaws.com/employee-mgmt-app:v1
 Confirmed via `aws ecr describe-images` that the `v1` tagged image is
 `ACTIVE` in the repository.
 
+##  ECS/Fargate (Phase 16) ✅
+
+### What Was Built
+The application was migrated from EC2 + Auto Scaling Group to ECS running
+on Fargate (serverless containers) — the same ALB and Target Group route
+traffic to Fargate tasks instead of EC2 instances.
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `terraform/ecs.tf` | ECS Cluster, Task Definition (referencing the ECR image, with `DB_HOST`/`S3_BUCKET_NAME`/`SNS_TOPIC_ARN` as environment variables), ECS Service, and a CloudWatch Log Group | Task Definition is the Fargate equivalent of a Launch Template — a blueprint the ECS Service uses to run containers |
+| `terraform/iam.tf` | Two new roles: `ecs_task_execution_role` (lets ECS pull the image and write logs) and `ecs_task_role` (lets the running container call Secrets Manager, S3, and SNS) | ECS deliberately separates these two roles — the execution role handles infrastructure-level actions (pulling images), while the task role handles application-level AWS access. This is a stricter least-privilege split than a single EC2 role |
+| `terraform/security-groups.tf` | A new `ecs-sg` (allows port 3000 only from `alb-sg`), and an added ingress rule on `rds-sg` allowing MySQL from `ecs-sg` | Fargate tasks needed their own security group since they aren't EC2 instances; RDS needed a new rule because it previously only trusted `app-sg` |
+| `terraform/alb.tf` | Target Group recreated with `target_type = "ip"` and `lifecycle { create_before_destroy = true }` | Explained below |
+| `terraform/autoscaling.tf`, `terraform/cloudwatch.tf` | The EC2 Launch Template, Auto Scaling Group, and its CPU alarm are commented out (not deleted) | Kept for reference to show the migration path from EC2 to containers — this was the working EC2-based deployment before the ECS migration |
+
+### Three Issues Debugged During Migration
+
+**1. Target type mismatch.** A Target Group created for EC2 defaults to
+`target_type = "instance"`. Fargate tasks use `awsvpc` networking and have
+their own IP address rather than an instance ID, so the Target Group had
+to be recreated with `target_type = "ip"`.
+
+**2. Terraform dependency ordering.** Changing `target_type` forces Target
+Group replacement, but the old Target Group couldn't be deleted while the
+ALB Listener still referenced it — a "resource in use" error. Adding
+`lifecycle { create_before_destroy = true }` on the Target Group fixed
+this: Terraform creates the new Target Group first, repoints the Listener,
+then safely deletes the old one.
+
+**3. Missing security group rule.** After the fix above, tasks failed to
+start with `Error: connect ETIMEDOUT` when connecting to RDS. The RDS
+security group only allowed inbound MySQL traffic from `app-sg` (the EC2
+security group) — Fargate tasks use a different security group (`ecs-sg`),
+which had no explicit permission to reach the database. Adding a second
+ingress rule on `rds-sg` for `ecs-sg` resolved it.
+
+### How It Was Verified
+```bash
+curl http://<alb-dns-name>/health
+# {"status":"ok","message":"Employee Management System API is running"}
+
+curl http://<alb-dns-name>/api/employees
+# [] — correctly empty, since this is a freshly created RDS instance
+```
+CloudWatch Logs (`/ecs/employee-mgmt-app`) confirmed `Database connected
+and table ready` and `Server running on port 3000` on the running task.
+
