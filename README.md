@@ -34,9 +34,9 @@ an app, but to understand *why* every AWS service is used.
 | 13 | SQS / SNS | ✅ Done |
 | 14 | CloudWatch | ✅ Done |
 | 15 | CloudTrail |✅ Done |
-| 16 | Route 53 + ACM | ⬜ Pending |
-| 17 | Docker + ECR | ⬜ Pending |
-| 18 | ECS / Fargate | ⬜ Pending |
+| 16 | Route 53 + ACM | ✅ Done |
+| 17 | Docker + ECR | ✅ Done |
+| 18 | ECS / Fargate | ✅ Done |
 | 19 | Terraform (full IaC) | ⬜ Pending |
 | 20 | GitHub Actions CI/CD | ⬜ Pending |
 | 21 | Security Hardening | ⬜ Pending |
@@ -620,24 +620,4 @@ a short-lived, auto-expiring credential directly from AWS for each run,
 scoped to a specific repository via a `Condition` on the trust policy —
 no long-lived secret ever exists.
 
-### A Debugging Story — GitHub's `sub` Claim Format Changed
-The trust policy was initially written to match GitHub's documented `sub`
-claim pattern: `repo:owner/repo-name:*`. Every workflow run failed with
-`Not authorized to perform sts:AssumeRoleWithWebIdentity`, even though the
-IAM role, OIDC provider, and policy all looked correct when inspected via
-`aws iam get-role`.
-
-To find the actual cause, a temporary debug step was added to the workflow
-that decoded the raw OIDC JWT:
-```bash
-curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-  "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
-  | jq -r '.value' | cut -d. -f2 | base64 -d | jq .
-```
-This revealed the actual `sub` claim was
-`repo:owner@actor_id/repo-name@repository_id:ref:refs/heads/main` — GitHub
-now includes numeric actor/repository IDs alongside the names, which the
-documented simple pattern didn't account for. The trust policy's
-`StringLike` condition was rewritten to match this exact structure with
-wildcards only around the numeric IDs, which resolved it.
 
