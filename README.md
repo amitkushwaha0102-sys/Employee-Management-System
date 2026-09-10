@@ -598,3 +598,46 @@ curl http://<alb-dns-name>/api/employees
 CloudWatch Logs (`/ecs/employee-mgmt-app`) confirmed `Database connected
 and table ready` and `Server running on port 3000` on the running task.
 
+## 🔄 GitHub Actions CI/CD (Phase 17) ✅
+
+### What Was Built
+An automated pipeline that builds the Docker image, pushes it to ECR, and
+forces a new ECS deployment on every push to `main` — no manual `docker
+build`/`push`/`update-service` required.
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `.github/workflows/deploy.yml` | GitHub Actions workflow — checkout, assume AWS role via OIDC, build/push image to ECR, force new ECS deployment | Automates the exact manual steps used in Phase 15/16, triggered on every push to `main` |
+| `terraform/iam.tf` | An `aws_iam_openid_connect_provider` for GitHub, an IAM role GitHub can assume via `sts:AssumeRoleWithWebIdentity`, and a scoped policy for ECR push + ECS deploy actions | OIDC avoids storing long-lived AWS access keys in GitHub Secrets — GitHub Actions receives short-lived, per-run credentials instead |
+| `terraform/versions.tf` | Added the `tls` provider | Used to fetch GitHub's OIDC certificate thumbprint dynamically via a `data "tls_certificate"` block, rather than hardcoding a value that could go stale if GitHub rotates its certificate |
+
+### Key Concept — Why OIDC Instead Of Access Keys
+Storing an AWS access key/secret as a GitHub Secret means a permanent
+credential exists that could leak. OIDC instead lets GitHub Actions request
+a short-lived, auto-expiring credential directly from AWS for each run,
+scoped to a specific repository via a `Condition` on the trust policy —
+no long-lived secret ever exists.
+
+### A Debugging Story — GitHub's `sub` Claim Format Changed
+The trust policy was initially written to match GitHub's documented `sub`
+claim pattern: `repo:owner/repo-name:*`. Every workflow run failed with
+`Not authorized to perform sts:AssumeRoleWithWebIdentity`, even though the
+IAM role, OIDC provider, and policy all looked correct when inspected via
+`aws iam get-role`.
+
+To find the actual cause, a temporary debug step was added to the workflow
+that decoded the raw OIDC JWT:
+```bash
+curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+  "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
+  | jq -r '.value' | cut -d. -f2 | base64 -d | jq .
+```
+This revealed the actual `sub` claim was
+`repo:owner@actor_id/repo-name@repository_id:ref:refs/heads/main` — GitHub
+now includes numeric actor/repository IDs alongside the names, which the
+documented simple pattern didn't account for. The trust policy's
+`StringLike` condition was rewritten to match this exact structure with
+wildcards only around the numeric IDs, which resolved it.
+
