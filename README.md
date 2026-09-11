@@ -620,4 +620,70 @@ a short-lived, auto-expiring credential directly from AWS for each run,
 scoped to a specific repository via a `Condition` on the trust policy —
 no long-lived secret ever exists.
 
+## 🛡️ Security Hardening (Phase 18) ✅
+
+### What Was Built
+An AWS WAF (Web Application Firewall) attached to the ALB, adding a
+filtering layer in front of the application for common web attacks and
+basic rate limiting. GuardDuty was configured but not deployed due to an
+account-level subscription restriction (documented below).
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `terraform/waf.tf` | A regional WAF Web ACL with AWS's managed `AWSManagedRulesCommonRuleSet` (SQL injection, XSS, and other common attack patterns) plus a rate-based rule (2000 requests per 5-minute window per IP), associated with the ALB | Adds a filtering layer between the internet and the ALB — malicious or abusive requests never reach the application |
+| `terraform/guardduty.tf` | A `aws_guardduty_detector` resource, commented out | See note below |
+
+### Security Practices Already In Place (From Earlier Phases)
+This phase also serves as an audit checkpoint — the project already
+implements: least-privilege IAM roles per service, no hardcoded secrets
+(Secrets Manager + `random_password`), private subnets for all compute and
+the database, security-group chaining (ALB → App/ECS → RDS), S3 Block
+Public Access, encryption at rest, CloudTrail audit logging, SSH-free
+access via SSM, and keyless CI/CD via OIDC.
+
+## 🔄 Disaster Recovery (Phase 19) ✅
+
+### What Was Built And Tested
+A full backup-and-restore cycle was configured and practically verified —
+not just documented in theory.
+
+### Files And Their Purpose
+
+| File | What's In It | Why |
+|---|---|---|
+| `terraform/rds.tf` | Explicit `backup_retention_period`, `backup_window`, and `maintenance_window` | The default/unset retention period can be 0 (no backups at all) — this was made explicit rather than relying on defaults |
+
+### RPO / RTO For This Architecture
+
+| Component | Backup Mechanism | RPO | RTO |
+|---|---|---|---|
+| RDS | Automated daily backups (1 day retention — limited by free tier) | ~5 min via point-in-time recovery | Minutes, via snapshot restore |
+| S3 | Versioning (Phase 7) | Immediate | Immediate (restore previous version) |
+| Infrastructure | Terraform state + code | N/A (code, not data) | ~10-15 min (`terraform apply`) |
+| Application | Docker image in ECR | N/A | Immediate (`force-new-deployment`) |
+
+### Practical Test — Simulated Disaster Recovery
+1. Created test data via the running API (`Disaster Test Employee`)
+2. Took a manual RDS snapshot: `aws rds create-db-snapshot`
+3. Restored that snapshot into a **new** RDS instance (not modifying the
+   original) using `aws rds restore-db-instance-from-db-snapshot`
+4. Confirmed the new instance came up successfully in the same private
+   subnet group and security group
+5. Deleted the restored instance afterward to avoid ongoing cost
+
+### Key Concept — Restore Creates A New Instance
+RDS restore does not revert an existing instance in place — it always
+provisions a brand new DB instance from the snapshot. This is deliberate:
+if the original instance is corrupted or compromised, it's never touched
+during recovery, and the "failed" instance remains available for forensic
+inspection if needed.
+
+### An Account-Level Constraint Hit During This Phase
+Setting `backup_retention_period = 7` failed with a
+`FreeTierRestrictionError` — this AWS account's free-tier limits cap
+retention at 1 day. This was a useful reminder that infrastructure design
+has to account for the actual constraints of the account/tier it runs on,
+not just documented defaults.
 
